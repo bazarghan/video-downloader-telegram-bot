@@ -71,7 +71,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     selected_option = options[idx]
     format_id = selected_option['format_id']
-    is_audio = "bestaudio" in format_id
+    is_audio = format_id == "bestaudio/best"
     
     # Check cache
     cached_file_id = db.get_file_id(url, format_id)
