@@ -1,5 +1,6 @@
 import os
 import re
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 import yt_dlp
@@ -114,7 +115,24 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
             
         await query.edit_message_text("🚀 Uploading to Telegram...")
-        
+
+        # Generate thumbnail for videos using ffmpeg (grab frame at 5s)
+        thumb_path = None
+        if not is_audio:
+            thumb_path = file_path + ".thumb.jpg"
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "ffmpeg", "-y", "-ss", "00:00:05", "-i", file_path,
+                    "-vframes", "1", "-q:v", "2", thumb_path,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL
+                )
+                await proc.wait()
+                if not os.path.exists(thumb_path) or os.path.getsize(thumb_path) == 0:
+                    thumb_path = None  # thumbnail generation failed, skip silently
+            except Exception:
+                thumb_path = None
+
         # Upload
         message = None
         with open(file_path, 'rb') as f:
@@ -122,12 +140,21 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 message = await context.bot.send_audio(chat_id=query.message.chat_id, audio=f)
                 file_id = message.audio.file_id
             else:
-                message = await context.bot.send_video(chat_id=query.message.chat_id, video=f)
+                thumb_file = open(thumb_path, 'rb') if thumb_path else None
+                try:
+                    message = await context.bot.send_video(
+                        chat_id=query.message.chat_id,
+                        video=f,
+                        thumbnail=thumb_file
+                    )
+                finally:
+                    if thumb_file:
+                        thumb_file.close()
                 file_id = message.video.file_id
-                
+
         # Cache it for future
         db.save_file_id(url, format_id, file_id)
-        
+
         await query.edit_message_text(f"✅ Upload successful! ({selected_option['label']})")
         
     except yt_dlp.utils.DownloadError as e:
@@ -136,9 +163,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("❌ An unexpected error occurred.")
         print(f"Error during download or upload: {e}")
     finally:
-        # Cleanup
+        # Cleanup video file
         if file_path and os.path.exists(file_path):
             try:
                 os.remove(file_path)
             except Exception as e:
                 print(f"Failed to delete {file_path}: {e}")
+        # Cleanup thumbnail
+        if thumb_path and os.path.exists(thumb_path):
+            try:
+                os.remove(thumb_path)
+            except Exception as e:
+                print(f"Failed to delete thumbnail {thumb_path}: {e}")
