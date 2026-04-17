@@ -30,7 +30,15 @@ def main():
     os.makedirs("downloads", exist_ok=True)
 
     # Build the application
-    application = ApplicationBuilder().token(token).build()
+    builder = ApplicationBuilder().token(token)
+
+    local_api_url = os.environ.get("LOCAL_API_URL")
+    if local_api_url:
+        logger.info(f"Using local Bot API server at: {local_api_url}")
+        builder.base_url(f"{local_api_url}")
+        builder.base_file_url(f"{local_api_url}/file")
+
+    application = builder.build()
 
     # Register handlers
     application.add_handler(CommandHandler('start', handlers.start))

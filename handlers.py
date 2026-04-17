@@ -106,9 +106,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 return
                 
         file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-        if file_size_mb > 50.0:
+        if file_size_mb > 2000.0:
             await query.edit_message_text(
-                f"❌ The downloaded file is {file_size_mb:.1f}MB, which is bigger than Telegram's 50MB bot upload limit.\n\n"
+                f"❌ The downloaded file is {file_size_mb:.1f}MB, which is bigger than Telegram's 2000MB bot upload limit.\n\n"
                 f"Please try again and select a lower quality."
             )
             return
